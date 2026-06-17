@@ -34,7 +34,7 @@ export default function TransactionForm({ onSuccess }: TransactionFormProps) {
   const [categories, setCategories] = useState<Category[]>([])
   const [accounts, setAccounts] = useState<Account[]>([])
 
-  // Fetch categories and accounts on mount
+  // Fetch categories and accounts on mount, with auto-initialization
   useEffect(() => {
     const fetchData = async () => {
       try {
@@ -77,16 +77,46 @@ export default function TransactionForm({ onSuccess }: TransactionFormProps) {
         if (accountsRes.data?.length) {
           setAccountId(accountsRes.data[0].id)
         } else {
-          // Fallback to mock if no accounts in DB
-          setAccounts([
-            { id: 'cash', name: '現金', type: 'cash' },
-            { id: 'bank', name: '銀行', type: 'bank' },
-          ])
-          setAccountId('cash')
+          // No accounts found — create defaults
+          const defaultAccounts = [
+            { name: '現金', type: 'cash', balance: 0, is_default: true },
+            { name: '銀行', type: 'bank', balance: 0 },
+          ]
+          const { data: newAccounts, error: insertError } = await supabase
+            .from('accounts')
+            .insert(defaultAccounts.map(a => ({ ...a, user_id: sessionData.session.user.id })))
+            .select()
+
+          if (insertError) throw insertError
+          
+          setAccounts(newAccounts || [])
+          if (newAccounts?.length) setAccountId(newAccounts[0].id)
         }
         
         if (categoriesRes.data?.length) {
           setCategoryId(categoriesRes.data[0].id)
+        } else {
+          // No categories found — create defaults
+          const defaultCategories = [
+            { name: '薪資', type: 'income', sort_order: 1 },
+            { name: '兼職', type: 'income', sort_order: 2 },
+            { name: '投資收益', type: 'income', sort_order: 3 },
+            { name: '食物', type: 'expense', sort_order: 1 },
+            { name: '交通', type: 'expense', sort_order: 2 },
+            { name: '房屋', type: 'expense', sort_order: 3 },
+            { name: '購物', type: 'expense', sort_order: 4 },
+            { name: '娛樂', type: 'expense', sort_order: 5 },
+            { name: '公用事業', type: 'expense', sort_order: 6 },
+          ]
+          const { data: newCategories, error: insertError } = await supabase
+            .from('categories')
+            .insert(defaultCategories.map(c => ({ ...c, user_id: sessionData.session.user.id })))
+            .select()
+
+          if (insertError) throw insertError
+          
+          setCategories(newCategories || [])
+          if (newCategories?.length) setCategoryId(newCategories[0].id)
         }
       } catch (err) {
         // Fallback to mock data if any error occurs
@@ -132,7 +162,7 @@ export default function TransactionForm({ onSuccess }: TransactionFormProps) {
       const userId = sessionData?.session?.user?.id
 
       if (!userId) {
-        setError('未登入，無法儲存至資料庫。若在演示模式中，交易將只存於本地。')
+        setError('請先登入才能儲存交易。')
         setLoading(false)
         return
       }

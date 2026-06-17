@@ -53,7 +53,46 @@ export default function DashboardPage() {
   const [isDemoMode, setIsDemoMode] = useState(false)
   const [activeView, setActiveView] = useState<ActiveView>('overview')
   const [sidebarOpen, setSidebarOpen] = useState(false)
+  const [dbError, setDbError] = useState<string | null>(null)
 
+  const initializeUser = async (userId: string) => {
+    try {
+      const response = await fetch('/api/init-user', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ userId }),
+      })
+      if (!response.ok) throw new Error('Failed to initialize user data')
+      return true
+    } catch (error) {
+      console.error('Error initializing user:', error)
+      return false
+    }
+  }
+
+  const checkAndInitializeUser = async (userId: string) => {
+    try {
+      const { data, error } = await supabase
+        .from('accounts')
+        .select('id')
+        .eq('user_id', userId)
+        .limit(1)
+
+      if (error) {
+        if (error.message?.includes("Could not find the table")) {
+          setDbError('資料庫表尚未創建。請按照 DATABASE_SETUP.md 中的說明在 Supabase SQL Editor 中執行 SQL 腳本。')
+        }
+        throw error
+      }
+      
+      // If no accounts exist, initialize them
+      if (!data || data.length === 0) {
+        await initializeUser(userId)
+      }
+    } catch (error) {
+      console.error('Error checking user accounts:', error)
+    }
+  }
   const calculateStatistics = useCallback((txns: Transaction[]) => {
     const income = txns.filter(t => t.type === 'income').reduce((sum, t) => sum + t.amount, 0)
     const expense = txns.filter(t => t.type === 'expense').reduce((sum, t) => sum + t.amount, 0)
@@ -74,8 +113,8 @@ export default function DashboardPage() {
           type,
           date,
           user_id,
-          categories!inner(name),
-          accounts!inner(name)
+          categories(name),
+          accounts(name)
         `)
         .eq('user_id', sessionData.session.user.id)
         .order('date', { ascending: false })
@@ -114,6 +153,9 @@ export default function DashboardPage() {
           window.location.href = '/auth'
         } else {
           setUser(data.session.user)
+          // Initialize user data if needed
+          await checkAndInitializeUser(data.session.user.id)
+          // Then fetch transactions
           await fetchTransactions()
         }
       } catch {
@@ -225,6 +267,22 @@ export default function DashboardPage() {
 
         {/* Page content */}
         <main className="flex-1 p-6 space-y-6">
+
+          {/* Database Error Alert */}
+          {dbError && (
+            <div className="rounded-lg border border-[color:var(--expense)] bg-[color:var(--expense-bg)] p-4">
+              <p className="text-sm font-medium text-[color:var(--expense)] mb-2">⚠️ 數據庫配置錯誤</p>
+              <p className="text-xs text-[color:var(--expense)] mb-3">{dbError}</p>
+              <a
+                href="/DATABASE_SETUP.md"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-xs font-medium text-[color:var(--expense)] hover:underline"
+              >
+                查看設置說明 →
+              </a>
+            </div>
+          )}
 
           {/* OVERVIEW */}
           {activeView === 'overview' && (
