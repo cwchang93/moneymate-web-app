@@ -69,7 +69,7 @@ export default function SupabaseTest() {
     try {
       const { data, error } = await supabase
         .from('transactions')
-        .select('id, description, amount, type, date')
+        .select('id, note, amount, type, date')
         .limit(3)
 
       if (error) {
@@ -88,7 +88,7 @@ export default function SupabaseTest() {
         step: 'DB 查詢 transactions 表',
         status: 'ok',
         detail: data.length > 0
-          ? `成功，取得 ${data.length} 筆資料：${JSON.stringify(data.map(d => d.description)).slice(0, 80)}`
+          ? `成功，取得 ${data.length} 筆資料`
           : '成功連線，目前資料表為空（0 筆）',
       })
     } catch (err: any) {

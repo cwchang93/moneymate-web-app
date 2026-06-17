@@ -19,12 +19,13 @@ import {
 
 export interface Transaction {
   id: string
-  description: string
+  note: string
   amount: number
-  category: string
   type: 'income' | 'expense'
   date: string
   user_id: string
+  category_name?: string
+  account_name?: string
 }
 
 interface Statistics {
@@ -34,12 +35,12 @@ interface Statistics {
 }
 
 const MOCK_TRANSACTIONS: Transaction[] = [
-  { id: '1', description: '工資', amount: 50000, category: '工作', type: 'income', date: '2024-06-15', user_id: 'demo' },
-  { id: '2', description: '租金', amount: 15000, category: '房屋', type: 'expense', date: '2024-06-10', user_id: 'demo' },
-  { id: '3', description: '雜貨購物', amount: 2500, category: '日用品', type: 'expense', date: '2024-06-08', user_id: 'demo' },
-  { id: '4', description: '餐廳聚餐', amount: 800, category: '餐飲', type: 'expense', date: '2024-06-05', user_id: 'demo' },
-  { id: '5', description: '兼職收入', amount: 8000, category: '工作', type: 'income', date: '2024-06-01', user_id: 'demo' },
-  { id: '6', description: '電費', amount: 1200, category: '公用事業', type: 'expense', date: '2024-05-28', user_id: 'demo' },
+  { id: '1', note: '工資', amount: 50000, type: 'income', date: '2024-06-15', user_id: 'demo', category_name: '薪資', account_name: '銀行' },
+  { id: '2', note: '租金', amount: 15000, type: 'expense', date: '2024-06-10', user_id: 'demo', category_name: '房屋', account_name: '銀行' },
+  { id: '3', note: '雜貨購物', amount: 2500, type: 'expense', date: '2024-06-08', user_id: 'demo', category_name: '購物', account_name: '現金' },
+  { id: '4', note: '餐廳聚餐', amount: 800, type: 'expense', date: '2024-06-05', user_id: 'demo', category_name: '食物', account_name: '現金' },
+  { id: '5', note: '兼職收入', amount: 8000, type: 'income', date: '2024-06-01', user_id: 'demo', category_name: '工作', account_name: '銀行' },
+  { id: '6', note: '電費', amount: 1200, type: 'expense', date: '2024-05-28', user_id: 'demo', category_name: '公用事業', account_name: '銀行' },
 ]
 
 type ActiveView = 'overview' | 'transactions' | 'add' | 'test'
@@ -66,12 +67,28 @@ export default function DashboardPage() {
 
       const { data, error } = await supabase
         .from('transactions')
-        .select('*')
+        .select(`
+          id,
+          note,
+          amount,
+          type,
+          date,
+          user_id,
+          categories!inner(name),
+          accounts!inner(name)
+        `)
         .eq('user_id', sessionData.session.user.id)
         .order('date', { ascending: false })
 
       if (error) throw error
-      const txns = data as Transaction[]
+      
+      // Transform data to match our Transaction interface
+      const txns = (data as any[]).map(t => ({
+        ...t,
+        category_name: t.categories?.name,
+        account_name: t.accounts?.name,
+      })) as Transaction[]
+      
       setTransactions(txns)
       calculateStatistics(txns)
     } catch (error) {

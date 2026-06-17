@@ -1,9 +1,19 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { supabase } from '@/lib/supabase'
 
-const CATEGORIES = ['食物', '交通', '娛樂', '購物', '工作', '薪資', '房屋', '公用事業', '其他']
+interface Category {
+  id: string
+  name: string
+  type: 'income' | 'expense'
+}
+
+interface Account {
+  id: string
+  name: string
+  type: string
+}
 
 interface TransactionFormProps {
   onSuccess: () => void
@@ -13,13 +23,71 @@ const inputClass =
   'w-full px-3 py-2 text-sm rounded-lg border border-border bg-background text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring transition'
 
 export default function TransactionForm({ onSuccess }: TransactionFormProps) {
-  const [description, setDescription] = useState('')
+  const [note, setNote] = useState('')
   const [amount, setAmount] = useState('')
-  const [category, setCategory] = useState('食物')
   const [type, setType] = useState<'income' | 'expense'>('expense')
   const [date, setDate] = useState(new Date().toISOString().split('T')[0])
+  const [accountId, setAccountId] = useState('')
+  const [categoryId, setCategoryId] = useState('')
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
+  const [categories, setCategories] = useState<Category[]>([])
+  const [accounts, setAccounts] = useState<Account[]>([])
+
+  // Fetch categories and accounts on mount
+  useEffect(() => {
+    const fetchData = async () => {
+      try {
+        const { data: sessionData } = await supabase.auth.getSession()
+        if (!sessionData?.session?.user) {
+          // Demo mode - use hardcoded data
+          setCategories([
+            { id: 'food', name: '食物', type: 'expense' },
+            { id: 'transport', name: '交通', type: 'expense' },
+            { id: 'entertainment', name: '娛樂', type: 'expense' },
+            { id: 'shopping', name: '購物', type: 'expense' },
+            { id: 'work', name: '工作', type: 'income' },
+            { id: 'salary', name: '薪資', type: 'income' },
+          ])
+          setAccounts([
+            { id: 'cash', name: '現金', type: 'cash' },
+            { id: 'bank', name: '銀行', type: 'bank' },
+          ])
+          return
+        }
+
+        // Fetch from DB
+        const [categoriesRes, accountsRes] = await Promise.all([
+          supabase.from('categories').select('id, name, type').eq('user_id', sessionData.session.user.id),
+          supabase.from('accounts').select('id, name, type').eq('user_id', sessionData.session.user.id),
+        ])
+
+        if (categoriesRes.error) throw categoriesRes.error
+        if (accountsRes.error) throw accountsRes.error
+
+        setCategories(categoriesRes.data || [])
+        setAccounts(accountsRes.data || [])
+
+        // Auto-select first of each
+        if (categoriesRes.data?.length) setCategoryId(categoriesRes.data[0].id)
+        if (accountsRes.data?.length) setAccountId(accountsRes.data[0].id)
+      } catch (err) {
+        console.error('Error fetching form data:', err)
+      }
+    }
+
+    fetchData()
+  }, [])
+
+  // Filter categories by type
+  const filteredCategories = categories.filter((c) => c.type === type)
+
+  // Reset category when type changes
+  useEffect(() => {
+    if (filteredCategories.length > 0 && !filteredCategories.find((c) => c.id === categoryId)) {
+      setCategoryId(filteredCategories[0].id)
+    }
+  }, [type, filteredCategories, categoryId])
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -28,24 +96,36 @@ export default function TransactionForm({ onSuccess }: TransactionFormProps) {
 
     try {
       const { data: sessionData } = await supabase.auth.getSession()
-      if (!sessionData?.session?.user) throw new Error('未登入，無法儲存至資料庫')
+      const userId = sessionData?.session?.user?.id
+
+      if (!userId) {
+        setError('未登入，無法儲存至資料庫。若在演示模式中，交易將只存於本地。')
+        setLoading(false)
+        return
+      }
+
+      if (!accountId) {
+        setError('請先選擇帳戶')
+        setLoading(false)
+        return
+      }
 
       const { error: insertError } = await supabase.from('transactions').insert([
         {
-          user_id: sessionData.session.user.id,
-          description,
-          amount: parseFloat(amount),
-          category,
+          user_id: userId,
+          account_id: accountId,
+          category_id: categoryId || null,
           type,
+          amount: parseFloat(amount),
+          note,
           date,
         },
       ])
 
       if (insertError) throw insertError
 
-      setDescription('')
+      setNote('')
       setAmount('')
-      setCategory('食物')
       setType('expense')
       setDate(new Date().toISOString().split('T')[0])
       onSuccess()
@@ -93,8 +173,8 @@ export default function TransactionForm({ onSuccess }: TransactionFormProps) {
           <label className="block text-xs font-medium text-muted-foreground mb-1.5">說明</label>
           <input
             type="text"
-            value={description}
-            onChange={(e) => setDescription(e.target.value)}
+            value={note}
+            onChange={(e) => setNote(e.target.value)}
             className={inputClass}
             placeholder="例如：午餐"
             required
@@ -116,14 +196,34 @@ export default function TransactionForm({ onSuccess }: TransactionFormProps) {
         </div>
 
         <div>
+          <label className="block text-xs font-medium text-muted-foreground mb-1.5">帳戶</label>
+          <select
+            value={accountId}
+            onChange={(e) => setAccountId(e.target.value)}
+            className={inputClass}
+            required
+          >
+            <option value="">選擇帳戶</option>
+            {accounts.map((acc) => (
+              <option key={acc.id} value={acc.id}>
+                {acc.name}
+              </option>
+            ))}
+          </select>
+        </div>
+
+        <div>
           <label className="block text-xs font-medium text-muted-foreground mb-1.5">分類</label>
           <select
-            value={category}
-            onChange={(e) => setCategory(e.target.value)}
+            value={categoryId}
+            onChange={(e) => setCategoryId(e.target.value)}
             className={inputClass}
           >
-            {CATEGORIES.map((cat) => (
-              <option key={cat} value={cat}>{cat}</option>
+            <option value="">無分類</option>
+            {filteredCategories.map((cat) => (
+              <option key={cat.id} value={cat.id}>
+                {cat.name}
+              </option>
             ))}
           </select>
         </div>
@@ -148,7 +248,7 @@ export default function TransactionForm({ onSuccess }: TransactionFormProps) {
 
       <button
         type="submit"
-        disabled={loading}
+        disabled={loading || !accountId}
         className="w-full py-2.5 text-sm font-semibold rounded-lg bg-foreground text-background hover:opacity-90 disabled:opacity-50 transition"
       >
         {loading ? '儲存中...' : '儲存交易'}

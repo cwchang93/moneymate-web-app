@@ -4,11 +4,12 @@ import { supabase } from '@/lib/supabase'
 
 export interface Transaction {
   id: string
-  description: string
+  note: string
   amount: number
-  category: string
   type: 'income' | 'expense'
   date: string
+  category_name?: string
+  account_name?: string
 }
 
 interface TransactionListProps {
@@ -30,8 +31,8 @@ const CATEGORY_COLORS: Record<string, string> = {
   '娛樂': 'bg-violet-100 text-violet-700',
 }
 
-function getCategoryStyle(category: string) {
-  return CATEGORY_COLORS[category] ?? 'bg-secondary text-muted-foreground'
+function getCategoryStyle(category?: string) {
+  return category && CATEGORY_COLORS[category] ? CATEGORY_COLORS[category] : 'bg-secondary text-muted-foreground'
 }
 
 export default function TransactionList({ transactions, onTransactionDeleted, compact = false }: TransactionListProps) {
@@ -80,14 +81,16 @@ export default function TransactionList({ transactions, onTransactionDeleted, co
             )}
           </div>
 
-          {/* Description + category */}
+          {/* Note + category */}
           <div className="flex-1 min-w-0">
-            <p className="text-sm font-medium text-foreground truncate">{t.description}</p>
+            <p className="text-sm font-medium text-foreground truncate">{t.note}</p>
             {!compact && (
               <div className="flex items-center gap-2 mt-0.5">
-                <span className={`text-[10px] font-medium px-1.5 py-0.5 rounded-full ${getCategoryStyle(t.category)}`}>
-                  {t.category}
-                </span>
+                {t.category_name && (
+                  <span className={`text-[10px] font-medium px-1.5 py-0.5 rounded-full ${getCategoryStyle(t.category_name)}`}>
+                    {t.category_name}
+                  </span>
+                )}
                 <span className="text-[11px] text-muted-foreground">
                   {new Date(t.date).toLocaleDateString('zh-TW', { month: 'short', day: 'numeric' })}
                 </span>
