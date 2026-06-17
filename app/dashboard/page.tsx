@@ -1,21 +1,31 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useCallback } from 'react'
 import { supabase } from '@/lib/supabase'
-import { Button } from '@/components/ui/button'
 import TransactionList from '@/components/TransactionList'
 import TransactionForm from '@/components/TransactionForm'
 import StatisticsCard from '@/components/StatisticsCard'
-import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts'
+import SupabaseTest from '@/components/SupabaseTest'
+import Sidebar from '@/components/Sidebar'
+import {
+  LineChart,
+  Line,
+  XAxis,
+  YAxis,
+  CartesianGrid,
+  Tooltip,
+  ResponsiveContainer,
+} from 'recharts'
 
-interface Transaction {
+export interface Transaction {
   id: string
-  description: string
+  note: string
   amount: number
-  category: string
   type: 'income' | 'expense'
   date: string
   user_id: string
+  category_name?: string
+  account_name?: string
 }
 
 interface Statistics {
@@ -24,248 +34,340 @@ interface Statistics {
   balance: number
 }
 
-// Mock 數據
 const MOCK_TRANSACTIONS: Transaction[] = [
-  { id: '1', description: '工資', amount: 50000, category: '工作', type: 'income', date: '2024-06-15', user_id: 'demo' },
-  { id: '2', description: '租金', amount: 15000, category: '房屋', type: 'expense', date: '2024-06-10', user_id: 'demo' },
-  { id: '3', description: '雜貨購物', amount: 2500, category: '日用品', type: 'expense', date: '2024-06-08', user_id: 'demo' },
-  { id: '4', description: '餐廳聚餐', amount: 800, category: '餐飲', type: 'expense', date: '2024-06-05', user_id: 'demo' },
-  { id: '5', description: '兼職收入', amount: 8000, category: '工作', type: 'income', date: '2024-06-01', user_id: 'demo' },
-  { id: '6', description: '電費', amount: 1200, category: '公用事業', type: 'expense', date: '2024-05-28', user_id: 'demo' },
+  { id: '1', note: '工資', amount: 50000, type: 'income', date: '2024-06-15', user_id: 'demo', category_name: '薪資', account_name: '銀行' },
+  { id: '2', note: '租金', amount: 15000, type: 'expense', date: '2024-06-10', user_id: 'demo', category_name: '房屋', account_name: '銀行' },
+  { id: '3', note: '雜貨購物', amount: 2500, type: 'expense', date: '2024-06-08', user_id: 'demo', category_name: '購物', account_name: '現金' },
+  { id: '4', note: '餐廳聚餐', amount: 800, type: 'expense', date: '2024-06-05', user_id: 'demo', category_name: '食物', account_name: '現金' },
+  { id: '5', note: '兼職收入', amount: 8000, type: 'income', date: '2024-06-01', user_id: 'demo', category_name: '工作', account_name: '銀行' },
+  { id: '6', note: '電費', amount: 1200, type: 'expense', date: '2024-05-28', user_id: 'demo', category_name: '公用事業', account_name: '銀行' },
 ]
+
+type ActiveView = 'overview' | 'transactions' | 'add' | 'test'
 
 export default function DashboardPage() {
   const [user, setUser] = useState<any>(null)
   const [transactions, setTransactions] = useState<Transaction[]>(MOCK_TRANSACTIONS)
-  const [statistics, setStatistics] = useState<Statistics>({
-    totalIncome: 0,
-    totalExpense: 0,
-    balance: 0,
-  })
+  const [statistics, setStatistics] = useState<Statistics>({ totalIncome: 0, totalExpense: 0, balance: 0 })
   const [loading, setLoading] = useState(true)
-  const [showForm, setShowForm] = useState(false)
   const [isDemoMode, setIsDemoMode] = useState(false)
+  const [activeView, setActiveView] = useState<ActiveView>('overview')
+  const [sidebarOpen, setSidebarOpen] = useState(false)
+  const [dbError, setDbError] = useState<string | null>(null)
 
-  useEffect(() => {
-    checkUser()
-    calculateStatistics()
-  }, [])
-
-  const checkUser = async () => {
+  const initializeUser = async (userId: string) => {
     try {
-      const demoUser = localStorage.getItem('demoUser')
-      if (demoUser) {
-        setIsDemoMode(true)
-        const user = JSON.parse(demoUser)
-        setUser(user)
-        setLoading(false)
-        return
-      }
-
-      const { data } = await supabase.auth.getSession()
-      if (!data.session) {
-        window.location.href = '/auth'
-      } else {
-        setUser(data.session.user)
-        fetchTransactions()
-      }
+      const response = await fetch('/api/init-user', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ userId }),
+      })
+      if (!response.ok) throw new Error('Failed to initialize user data')
+      return true
     } catch (error) {
-      setLoading(false)
+      console.error('Error initializing user:', error)
+      return false
     }
   }
 
-  const calculateStatistics = () => {
-    const income = transactions
-      .filter((t) => t.type === 'income')
-      .reduce((sum, t) => sum + t.amount, 0)
-    const expense = transactions
-      .filter((t) => t.type === 'expense')
-      .reduce((sum, t) => sum + t.amount, 0)
-
-    setStatistics({
-      totalIncome: income,
-      totalExpense: expense,
-      balance: income - expense,
-    })
-  }
-
-  const fetchTransactions = async () => {
+  const checkAndInitializeUser = async (userId: string) => {
     try {
-      const { data: session } = await supabase.auth.getSession()
-      if (!session?.user) return
+      const { data, error } = await supabase
+        .from('accounts')
+        .select('id')
+        .eq('user_id', userId)
+        .limit(1)
+
+      if (error) {
+        if (error.message?.includes("Could not find the table")) {
+          setDbError('資料庫表尚未創建。請按照 DATABASE_SETUP.md 中的說明在 Supabase SQL Editor 中執行 SQL 腳本。')
+        }
+        throw error
+      }
+      
+      // If no accounts exist, initialize them
+      if (!data || data.length === 0) {
+        await initializeUser(userId)
+      }
+    } catch (error) {
+      console.error('Error checking user accounts:', error)
+    }
+  }
+  const calculateStatistics = useCallback((txns: Transaction[]) => {
+    const income = txns.filter(t => t.type === 'income').reduce((sum, t) => sum + t.amount, 0)
+    const expense = txns.filter(t => t.type === 'expense').reduce((sum, t) => sum + t.amount, 0)
+    setStatistics({ totalIncome: income, totalExpense: expense, balance: income - expense })
+  }, [])
+
+  const fetchTransactions = useCallback(async () => {
+    try {
+      const { data: sessionData } = await supabase.auth.getSession()
+      if (!sessionData?.session?.user) return
 
       const { data, error } = await supabase
         .from('transactions')
-        .select('*')
-        .eq('user_id', session.user.id)
+        .select(`
+          id,
+          note,
+          amount,
+          type,
+          date,
+          user_id,
+          categories(name),
+          accounts(name)
+        `)
+        .eq('user_id', sessionData.session.user.id)
         .order('date', { ascending: false })
 
       if (error) throw error
-
-      const txns = data as Transaction[]
+      
+      // Transform data to match our Transaction interface
+      const txns = (data as any[]).map(t => ({
+        ...t,
+        category_name: t.categories?.name,
+        account_name: t.accounts?.name,
+      })) as Transaction[]
+      
       setTransactions(txns)
-      calculateStatistics()
+      calculateStatistics(txns)
     } catch (error) {
       console.error('Error fetching transactions:', error)
     } finally {
       setLoading(false)
     }
-  }
+  }, [calculateStatistics])
+
+  useEffect(() => {
+    const checkUser = async () => {
+      try {
+        const demoUser = localStorage.getItem('demoUser')
+        if (demoUser) {
+          setIsDemoMode(true)
+          setUser(JSON.parse(demoUser))
+          calculateStatistics(MOCK_TRANSACTIONS)
+          setLoading(false)
+          return
+        }
+        const { data } = await supabase.auth.getSession()
+        if (!data.session) {
+          window.location.href = '/auth'
+        } else {
+          setUser(data.session.user)
+          // Initialize user data if needed
+          await checkAndInitializeUser(data.session.user.id)
+          // Then fetch transactions
+          await fetchTransactions()
+        }
+      } catch {
+        setLoading(false)
+      }
+    }
+    checkUser()
+  }, [calculateStatistics, fetchTransactions])
 
   const handleLogout = async () => {
     if (isDemoMode) {
       localStorage.removeItem('demoUser')
-      window.location.href = '/auth'
     } else {
       await supabase.auth.signOut()
-      window.location.href = '/auth'
     }
+    window.location.href = '/auth'
   }
 
   const handleTransactionAdded = () => {
-    setShowForm(false)
+    setActiveView('transactions')
+    if (!isDemoMode) fetchTransactions()
+  }
+
+  const handleTransactionDeleted = (deletedId: string) => {
     if (isDemoMode) {
-      // 演示模式：添加新交易到本地
-      setTransactions([...transactions])
-      calculateStatistics()
+      const updated = transactions.filter(t => t.id !== deletedId)
+      setTransactions(updated)
+      calculateStatistics(updated)
     } else {
       fetchTransactions()
     }
   }
 
-  // 準備圖表數據
+  // Chart data — aggregate income/expense by date
   const chartData = transactions
     .slice()
-    .reverse()
-    .slice(0, 30)
-    .map((t) => ({
-      date: new Date(t.date).toLocaleDateString('zh-TW'),
-      amount: t.amount,
-      type: t.type,
-    }))
-    .reduce((acc, item) => {
-      const existing = acc.find((a) => a.date === item.date)
+    .sort((a, b) => a.date.localeCompare(b.date))
+    .slice(-14)
+    .reduce((acc, t) => {
+      const label = new Date(t.date).toLocaleDateString('zh-TW', { month: 'short', day: 'numeric' })
+      const existing = acc.find(a => a.date === label)
       if (existing) {
-        if (item.type === 'income') existing.income = (existing.income || 0) + item.amount
-        else existing.expense = (existing.expense || 0) + item.amount
+        if (t.type === 'income') existing.income = (existing.income || 0) + t.amount
+        else existing.expense = (existing.expense || 0) + t.amount
       } else {
-        acc.push({
-          date: item.date,
-          income: item.type === 'income' ? item.amount : 0,
-          expense: item.type === 'expense' ? item.amount : 0,
-        })
+        acc.push({ date: label, income: t.type === 'income' ? t.amount : 0, expense: t.type === 'expense' ? t.amount : 0 })
       }
       return acc
-    }, [] as any[])
+    }, [] as { date: string; income: number; expense: number }[])
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center min-h-screen">
-        <div className="text-lg text-slate-600">載入中...</div>
+      <div className="flex items-center justify-center min-h-screen bg-background">
+        <div className="text-muted-foreground text-sm">載入中...</div>
       </div>
     )
   }
 
   return (
-    <div className="min-h-screen bg-slate-50">
-      {/* Header */}
-      <header className="bg-white border-b border-slate-200">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4 flex justify-between items-center">
-          <div>
-            <h1 className="text-2xl font-bold text-slate-900">Money Mate</h1>
-            {isDemoMode && <p className="text-sm text-blue-600">演示模式</p>}
-          </div>
-          <div className="flex items-center space-x-4">
-            <span className="text-sm text-slate-600">{user?.email}</span>
-            <Button
-              onClick={handleLogout}
-              className="bg-slate-900 hover:bg-slate-800 text-white"
-            >
-              登出
-            </Button>
-          </div>
-        </div>
-      </header>
+    <div className="flex min-h-screen bg-background">
+      {/* Mobile overlay */}
+      {sidebarOpen && (
+        <div
+          className="fixed inset-0 z-20 bg-black/50 lg:hidden"
+          onClick={() => setSidebarOpen(false)}
+        />
+      )}
 
-      {/* Main Content */}
-      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        {isDemoMode && (
-          <div className="bg-blue-50 border border-blue-200 text-blue-700 p-4 rounded-lg mb-6">
-            <p className="text-sm">
-              你正在使用演示模式。連接 Supabase 後，你的數據將被保存到雲端。
+      {/* Sidebar */}
+      <Sidebar
+        activeView={activeView}
+        onNavigate={(view) => { setActiveView(view); setSidebarOpen(false) }}
+        onLogout={handleLogout}
+        user={user}
+        isDemoMode={isDemoMode}
+        isOpen={sidebarOpen}
+      />
+
+      {/* Main area */}
+      <div className="flex-1 flex flex-col min-w-0">
+        {/* Top bar */}
+        <header className="sticky top-0 z-10 flex items-center gap-4 border-b border-border bg-card px-6 py-4">
+          <button
+            className="lg:hidden p-2 rounded-md text-muted-foreground hover:text-foreground hover:bg-secondary transition"
+            onClick={() => setSidebarOpen(true)}
+            aria-label="開啟選單"
+          >
+            <svg width="20" height="20" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+              <path d="M3 12h18M3 6h18M3 18h18" strokeLinecap="round" />
+            </svg>
+          </button>
+          <div className="flex-1">
+            <h2 className="text-base font-semibold text-foreground">
+              {activeView === 'overview' && '總覽'}
+              {activeView === 'transactions' && '交易記錄'}
+              {activeView === 'add' && '新增交易'}
+              {activeView === 'test' && 'Supabase 連線測試'}
+            </h2>
+            <p className="text-xs text-muted-foreground">
+              {new Date().toLocaleDateString('zh-TW', { year: 'numeric', month: 'long', day: 'numeric' })}
             </p>
           </div>
-        )}
+          {isDemoMode && (
+            <span className="text-xs font-medium px-2 py-1 rounded-full bg-secondary text-muted-foreground border border-border">
+              演示模式
+            </span>
+          )}
+        </header>
 
-        {/* Statistics */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
-          <StatisticsCard
-            title="收入"
-            amount={statistics.totalIncome}
-            color="green"
-          />
-          <StatisticsCard
-            title="支出"
-            amount={statistics.totalExpense}
-            color="red"
-          />
-          <StatisticsCard
-            title="結餘"
-            amount={statistics.balance}
-            color={statistics.balance >= 0 ? 'blue' : 'red'}
-          />
-        </div>
+        {/* Page content */}
+        <main className="flex-1 p-6 space-y-6">
 
-        {/* Chart */}
-        {chartData.length > 0 && (
-          <div className="bg-white rounded-lg shadow p-6 mb-8">
-            <h2 className="text-lg font-semibold text-slate-900 mb-4">近期趨勢</h2>
-            <ResponsiveContainer width="100%" height={300}>
-              <LineChart data={chartData}>
-                <CartesianGrid strokeDasharray="3 3" />
-                <XAxis dataKey="date" />
-                <YAxis />
-                <Tooltip />
-                <Legend />
-                <Line type="monotone" dataKey="income" stroke="#10b981" name="收入" />
-                <Line type="monotone" dataKey="expense" stroke="#ef4444" name="支出" />
-              </LineChart>
-            </ResponsiveContainer>
-          </div>
-        )}
+          {/* Database Error Alert */}
+          {dbError && (
+            <div className="rounded-lg border border-[color:var(--expense)] bg-[color:var(--expense-bg)] p-4">
+              <p className="text-sm font-medium text-[color:var(--expense)] mb-2">⚠️ 數據庫配置錯誤</p>
+              <p className="text-xs text-[color:var(--expense)] mb-3">{dbError}</p>
+              <a
+                href="/DATABASE_SETUP.md"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-xs font-medium text-[color:var(--expense)] hover:underline"
+              >
+                查看設置說明 →
+              </a>
+            </div>
+          )}
 
-        {/* Actions and Transactions */}
-        <div className="flex justify-between items-center mb-6">
-          <h2 className="text-lg font-semibold text-slate-900">交易記錄</h2>
-          <Button
-            onClick={() => setShowForm(!showForm)}
-            className="bg-slate-900 hover:bg-slate-800 text-white"
-          >
-            {showForm ? '關閉' : '新增交易'}
-          </Button>
-        </div>
+          {/* OVERVIEW */}
+          {activeView === 'overview' && (
+            <>
+              {/* Stats */}
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                <StatisticsCard title="本月收入" amount={statistics.totalIncome} variant="income" />
+                <StatisticsCard title="本月支出" amount={statistics.totalExpense} variant="expense" />
+                <StatisticsCard title="目前結餘" amount={statistics.balance} variant="balance" />
+              </div>
 
-        {showForm && (
-          <div className="bg-white rounded-lg shadow p-6 mb-8">
-            <TransactionForm onSuccess={handleTransactionAdded} />
-          </div>
-        )}
+              {/* Chart */}
+              {chartData.length > 0 && (
+                <div className="rounded-xl border border-border bg-card p-6">
+                  <h3 className="text-sm font-semibold text-foreground mb-4">近期趨勢</h3>
+                  <ResponsiveContainer width="100%" height={220}>
+                    <LineChart data={chartData} margin={{ top: 4, right: 4, left: -20, bottom: 0 }}>
+                      <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" />
+                      <XAxis dataKey="date" tick={{ fontSize: 11, fill: 'var(--muted-foreground)' }} tickLine={false} axisLine={false} />
+                      <YAxis tick={{ fontSize: 11, fill: 'var(--muted-foreground)' }} tickLine={false} axisLine={false} />
+                      <Tooltip
+                        contentStyle={{ backgroundColor: 'var(--card)', border: '1px solid var(--border)', borderRadius: '8px', fontSize: 12 }}
+                        labelStyle={{ color: 'var(--foreground)', fontWeight: 600 }}
+                      />
+                      <Line type="monotone" dataKey="income" stroke="var(--income)" strokeWidth={2} dot={false} name="收入" />
+                      <Line type="monotone" dataKey="expense" stroke="var(--expense)" strokeWidth={2} dot={false} name="支出" />
+                    </LineChart>
+                  </ResponsiveContainer>
+                </div>
+              )}
 
-        {/* Transaction List */}
-        <div className="bg-white rounded-lg shadow">
-          <TransactionList
-            transactions={transactions}
-            onTransactionDeleted={() => {
-              if (isDemoMode) {
-                setTransactions(transactions)
-                calculateStatistics()
-              } else {
-                fetchTransactions()
-              }
-            }}
-          />
-        </div>
-      </main>
+              {/* Recent transactions preview */}
+              <div className="rounded-xl border border-border bg-card">
+                <div className="flex items-center justify-between px-6 py-4 border-b border-border">
+                  <h3 className="text-sm font-semibold text-foreground">最近交易</h3>
+                  <button
+                    onClick={() => setActiveView('transactions')}
+                    className="text-xs text-muted-foreground hover:text-foreground transition"
+                  >
+                    查看全部
+                  </button>
+                </div>
+                <TransactionList
+                  transactions={transactions.slice(0, 5)}
+                  onTransactionDeleted={handleTransactionDeleted}
+                  compact
+                />
+              </div>
+            </>
+          )}
+
+          {/* TRANSACTIONS */}
+          {activeView === 'transactions' && (
+            <div className="rounded-xl border border-border bg-card">
+              <div className="flex items-center justify-between px-6 py-4 border-b border-border">
+                <h3 className="text-sm font-semibold text-foreground">所有交易</h3>
+                <button
+                  onClick={() => setActiveView('add')}
+                  className="text-xs font-medium px-3 py-1.5 bg-foreground text-background rounded-lg hover:opacity-90 transition"
+                >
+                  + 新增
+                </button>
+              </div>
+              <TransactionList
+                transactions={transactions}
+                onTransactionDeleted={handleTransactionDeleted}
+              />
+            </div>
+          )}
+
+          {/* ADD */}
+          {activeView === 'add' && (
+            <div className="max-w-xl">
+              <div className="rounded-xl border border-border bg-card p-6">
+                <h3 className="text-sm font-semibold text-foreground mb-6">新增交易</h3>
+                <TransactionForm onSuccess={handleTransactionAdded} />
+              </div>
+            </div>
+          )}
+
+          {/* TEST */}
+          {activeView === 'test' && <SupabaseTest />}
+
+        </main>
+      </div>
     </div>
   )
 }
