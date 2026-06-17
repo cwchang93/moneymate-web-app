@@ -12,6 +12,20 @@ export default function AuthPage() {
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
   const [success, setSuccess] = useState('')
+  const [isSupabaseAvailable, setIsSupabaseAvailable] = useState(true)
+
+  useEffect(() => {
+    // 檢查 Supabase 是否可用
+    const checkSupabase = async () => {
+      try {
+        const { data } = await supabase.auth.getSession()
+        setIsSupabaseAvailable(true)
+      } catch (err) {
+        setIsSupabaseAvailable(false)
+      }
+    }
+    checkSupabase()
+  }, [])
 
   const handleAuth = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -20,6 +34,16 @@ export default function AuthPage() {
     setSuccess('')
 
     try {
+      if (!isSupabaseAvailable) {
+        // 演示模式：存儲到本地並重定向
+        localStorage.setItem('demoUser', JSON.stringify({ email, isSignUp }))
+        setSuccess('演示模式已啟用。正在進入儀表板...')
+        setTimeout(() => {
+          window.location.href = '/dashboard'
+        }, 1000)
+        return
+      }
+
       if (isSignUp) {
         const { error } = await supabase.auth.signUp({ email, password })
         if (error) throw error
@@ -36,6 +60,11 @@ export default function AuthPage() {
     } finally {
       setLoading(false)
     }
+  }
+
+  const handleDemoMode = () => {
+    localStorage.setItem('demoUser', JSON.stringify({ email: 'demo@example.com', isSignUp: false }))
+    window.location.href = '/dashboard'
   }
 
   return (
@@ -111,6 +140,20 @@ export default function AuthPage() {
               {isSignUp ? '已有帳戶？登入' : '沒有帳戶？註冊'}
             </button>
           </div>
+
+          {!isSupabaseAvailable && (
+            <div className="mt-6 border-t pt-6">
+              <p className="text-center text-slate-600 text-sm mb-4">
+                Supabase 未連接。使用演示模式探索應用。
+              </p>
+              <button
+                onClick={handleDemoMode}
+                className="w-full bg-blue-600 hover:bg-blue-700 text-white font-medium py-2 rounded-lg transition"
+              >
+                進入演示模式
+              </button>
+            </div>
+          )}
         </div>
       </div>
     </div>
