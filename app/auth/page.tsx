@@ -1,7 +1,6 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { supabase } from '@/lib/supabase'
 import { Button } from '@/components/ui/button'
 import Link from 'next/link'
 
@@ -12,58 +11,56 @@ export default function AuthPage() {
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
   const [success, setSuccess] = useState('')
-  const [isSupabaseAvailable, setIsSupabaseAvailable] = useState(true)
+  const [isDemoMode, setIsDemoMode] = useState(true)
 
   useEffect(() => {
-    // 檢查 Supabase 是否可用
-    const checkSupabase = async () => {
-      try {
-        const { data } = await supabase.auth.getSession()
-        setIsSupabaseAvailable(true)
-      } catch (err) {
-        setIsSupabaseAvailable(false)
-      }
-    }
-    checkSupabase()
+    // 默认使用演示模式（如果 Supabase 配置正确，可在 .env.local 中设置）
+    const hasSupabaseConfig = 
+      process.env.NEXT_PUBLIC_SUPABASE_URL && 
+      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY &&
+      !process.env.NEXT_PUBLIC_SUPABASE_URL.includes('placeholder')
+
+    setIsDemoMode(!hasSupabaseConfig)
   }, [])
 
   const handleAuth = async (e: React.FormEvent) => {
     e.preventDefault()
+    
+    if (!email || !password) {
+      setError('请填写所有字段')
+      return
+    }
+
     setLoading(true)
     setError('')
     setSuccess('')
 
     try {
-      if (!isSupabaseAvailable) {
-        // 演示模式：存儲到本地並重定向
-        localStorage.setItem('demoUser', JSON.stringify({ email, isSignUp }))
-        setSuccess('演示模式已啟用。正在進入儀表板...')
-        setTimeout(() => {
-          window.location.href = '/dashboard'
-        }, 1000)
-        return
-      }
-
-      if (isSignUp) {
-        const { error } = await supabase.auth.signUp({ email, password })
-        if (error) throw error
-        setSuccess('註冊成功！請檢查您的電子郵件進行驗證。')
-      } else {
-        const { error } = await supabase.auth.signInWithPassword({ email, password })
-        if (error) throw error
-        setSuccess('登入成功！')
-        // 重定向到儀表板
+      // 演示模式：直接保存到本地并重定向
+      localStorage.setItem('demoUser', JSON.stringify({ 
+        email, 
+        isSignUp,
+        createdAt: new Date().toISOString()
+      }))
+      
+      setSuccess(isSignUp ? '演示账户创建成功！' : '演示登入成功！')
+      
+      setTimeout(() => {
         window.location.href = '/dashboard'
-      }
+      }, 1000)
     } catch (err: any) {
-      setError(err.message || '發生錯誤')
+      setError(err.message || '发生错误')
     } finally {
       setLoading(false)
     }
   }
 
-  const handleDemoMode = () => {
-    localStorage.setItem('demoUser', JSON.stringify({ email: 'demo@example.com', isSignUp: false }))
+  const handleQuickDemo = () => {
+    localStorage.setItem('demoUser', JSON.stringify({ 
+      email: 'demo@moneymate.app', 
+      isSignUp: false,
+      createdAt: new Date().toISOString()
+    }))
     window.location.href = '/dashboard'
   }
 
@@ -75,13 +72,21 @@ export default function AuthPage() {
             Money Mate
           </h1>
           <p className="text-center text-slate-600 mb-8">
-            {isSignUp ? '建立新帳戶' : '登入您的帳戶'}
+            {isSignUp ? '建立新帐户' : '登入您的帐户'}
           </p>
+
+          {isDemoMode && (
+            <div className="mb-6 p-3 bg-blue-50 border border-blue-200 rounded-lg">
+              <p className="text-sm text-blue-700">
+                演示模式已启用。您的数据将存储在本地。
+              </p>
+            </div>
+          )}
 
           <form onSubmit={handleAuth} className="space-y-4">
             <div>
               <label className="block text-sm font-medium text-slate-700 mb-1">
-                電子郵件
+                电子邮件
               </label>
               <input
                 type="email"
@@ -95,7 +100,7 @@ export default function AuthPage() {
 
             <div>
               <label className="block text-sm font-medium text-slate-700 mb-1">
-                密碼
+                密码
               </label>
               <input
                 type="password"
@@ -122,38 +127,36 @@ export default function AuthPage() {
             <Button
               type="submit"
               disabled={loading}
-              className="w-full bg-slate-900 hover:bg-slate-800 text-white font-medium py-2 rounded-lg transition"
+              className="w-full bg-slate-900 hover:bg-slate-800 text-white font-medium py-2 rounded-lg transition disabled:opacity-50 disabled:cursor-not-allowed"
             >
-              {loading ? '處理中...' : isSignUp ? '註冊' : '登入'}
+              {loading ? '处理中...' : isSignUp ? '注册' : '登入'}
             </Button>
           </form>
 
-          <div className="mt-6 flex items-center justify-center space-x-2">
+          <div className="mt-6 flex items-center justify-center">
             <button
               onClick={() => {
                 setIsSignUp(!isSignUp)
                 setError('')
                 setSuccess('')
               }}
-              className="text-slate-600 hover:text-slate-900 text-sm"
+              className="text-slate-600 hover:text-slate-900 text-sm font-medium"
             >
-              {isSignUp ? '已有帳戶？登入' : '沒有帳戶？註冊'}
+              {isSignUp ? '已有帐户？登入' : '没有帐户？注册'}
             </button>
           </div>
 
-          {!isSupabaseAvailable && (
-            <div className="mt-6 border-t pt-6">
-              <p className="text-center text-slate-600 text-sm mb-4">
-                Supabase 未連接。使用演示模式探索應用。
-              </p>
-              <button
-                onClick={handleDemoMode}
-                className="w-full bg-blue-600 hover:bg-blue-700 text-white font-medium py-2 rounded-lg transition"
-              >
-                進入演示模式
-              </button>
-            </div>
-          )}
+          <div className="mt-6 border-t pt-6">
+            <button
+              onClick={handleQuickDemo}
+              className="w-full bg-gradient-to-r from-green-500 to-blue-500 hover:from-green-600 hover:to-blue-600 text-white font-medium py-2 rounded-lg transition"
+            >
+              快速体验演示
+            </button>
+            <p className="text-center text-xs text-slate-500 mt-3">
+              点击上方按钮查看预加载的示例数据
+            </p>
+          </div>
         </div>
       </div>
     </div>
