@@ -57,12 +57,34 @@ export default function DashboardPage() {
 
   const initializeUser = async (userId: string) => {
     try {
-      const response = await fetch('/api/init-user', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ userId }),
-      })
-      if (!response.ok) throw new Error('Failed to initialize user data')
+      // Seed default accounts using the user's own session (RLS: auth.uid() = user_id)
+      const { error: accountsError } = await supabase.from('accounts').insert([
+        { user_id: userId, name: '現金', type: 'cash', balance: 0, is_default: true },
+        { user_id: userId, name: '銀行', type: 'bank', balance: 0 },
+      ])
+      if (accountsError) throw accountsError
+
+      // Seed default categories only if the user has none yet
+      const { data: existingCategories } = await supabase
+        .from('categories')
+        .select('id')
+        .eq('user_id', userId)
+        .limit(1)
+
+      if (!existingCategories || existingCategories.length === 0) {
+        const { error: categoriesError } = await supabase.from('categories').insert([
+          { user_id: userId, name: '薪資', type: 'income', sort_order: 1 },
+          { user_id: userId, name: '兼職', type: 'income', sort_order: 2 },
+          { user_id: userId, name: '投資收益', type: 'income', sort_order: 3 },
+          { user_id: userId, name: '食物', type: 'expense', sort_order: 1 },
+          { user_id: userId, name: '交通', type: 'expense', sort_order: 2 },
+          { user_id: userId, name: '房屋', type: 'expense', sort_order: 3 },
+          { user_id: userId, name: '購物', type: 'expense', sort_order: 4 },
+          { user_id: userId, name: '娛樂', type: 'expense', sort_order: 5 },
+          { user_id: userId, name: '公用事業', type: 'expense', sort_order: 6 },
+        ])
+        if (categoriesError) throw categoriesError
+      }
       return true
     } catch (error) {
       console.error('Error initializing user:', error)
@@ -174,9 +196,16 @@ export default function DashboardPage() {
     window.location.href = '/auth'
   }
 
-  const handleTransactionAdded = () => {
+  const handleTransactionAdded = (demoTransaction?: Transaction) => {
+    if (isDemoMode && demoTransaction) {
+      const updated = [demoTransaction, ...transactions]
+      setTransactions(updated)
+      calculateStatistics(updated)
+      setActiveView('transactions')
+      return
+    }
     setActiveView('transactions')
-    if (!isDemoMode) fetchTransactions()
+    fetchTransactions()
   }
 
   const handleTransactionDeleted = (deletedId: string) => {
@@ -358,7 +387,7 @@ export default function DashboardPage() {
             <div className="max-w-xl">
               <div className="rounded-xl border border-border bg-card p-6">
                 <h3 className="text-sm font-semibold text-foreground mb-6">新增交易</h3>
-                <TransactionForm onSuccess={handleTransactionAdded} />
+                <TransactionForm onSuccess={handleTransactionAdded} isDemoMode={isDemoMode} />
               </div>
             </div>
           )}

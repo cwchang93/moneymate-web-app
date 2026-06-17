@@ -15,14 +15,26 @@ interface Account {
   type: string
 }
 
+export interface NewTransaction {
+  id: string
+  note: string
+  amount: number
+  type: 'income' | 'expense'
+  date: string
+  user_id: string
+  category_name?: string
+  account_name?: string
+}
+
 interface TransactionFormProps {
-  onSuccess: () => void
+  onSuccess: (demoTransaction?: NewTransaction) => void
+  isDemoMode?: boolean
 }
 
 const inputClass =
   'w-full px-3 py-2 text-sm rounded-lg border border-border bg-background text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring transition'
 
-export default function TransactionForm({ onSuccess }: TransactionFormProps) {
+export default function TransactionForm({ onSuccess, isDemoMode = false }: TransactionFormProps) {
   const [note, setNote] = useState('')
   const [amount, setAmount] = useState('')
   const [type, setType] = useState<'income' | 'expense'>('expense')
@@ -39,8 +51,8 @@ export default function TransactionForm({ onSuccess }: TransactionFormProps) {
     const fetchData = async () => {
       try {
         const { data: sessionData } = await supabase.auth.getSession()
-        
-        if (!sessionData?.session?.user) {
+
+        if (isDemoMode || !sessionData?.session?.user) {
           // Demo mode - use hardcoded data
           const mockCategories = [
             { id: 'food', name: '食物', type: 'expense' as const },
@@ -140,7 +152,7 @@ export default function TransactionForm({ onSuccess }: TransactionFormProps) {
     }
 
     fetchData()
-  }, [])
+  }, [isDemoMode])
 
   // Filter categories by type
   const filteredCategories = categories.filter((c) => c.type === type)
@@ -161,14 +173,30 @@ export default function TransactionForm({ onSuccess }: TransactionFormProps) {
       const { data: sessionData } = await supabase.auth.getSession()
       const userId = sessionData?.session?.user?.id
 
-      if (!userId) {
-        setError('請先登入才能儲存交易。')
+      if (!accountId) {
+        setError('請先選擇帳戶')
         setLoading(false)
         return
       }
 
-      if (!accountId) {
-        setError('請先選擇帳戶')
+      if (isDemoMode || !userId) {
+        // Demo mode — add to local state without persisting to Supabase
+        const account = accounts.find((a) => a.id === accountId)
+        const category = categories.find((c) => c.id === categoryId)
+        onSuccess({
+          id: `demo-${Date.now()}`,
+          note,
+          amount: parseFloat(amount),
+          type,
+          date,
+          user_id: 'demo',
+          category_name: category?.name,
+          account_name: account?.name,
+        })
+        setNote('')
+        setAmount('')
+        setType('expense')
+        setDate(new Date().toISOString().split('T')[0])
         setLoading(false)
         return
       }
