@@ -41,18 +41,23 @@ export default function TransactionForm({ onSuccess }: TransactionFormProps) {
         const { data: sessionData } = await supabase.auth.getSession()
         if (!sessionData?.session?.user) {
           // Demo mode - use hardcoded data
-          setCategories([
-            { id: 'food', name: '食物', type: 'expense' },
-            { id: 'transport', name: '交通', type: 'expense' },
-            { id: 'entertainment', name: '娛樂', type: 'expense' },
-            { id: 'shopping', name: '購物', type: 'expense' },
-            { id: 'work', name: '工作', type: 'income' },
-            { id: 'salary', name: '薪資', type: 'income' },
-          ])
-          setAccounts([
+          const mockCategories = [
+            { id: 'food', name: '食物', type: 'expense' as const },
+            { id: 'transport', name: '交通', type: 'expense' as const },
+            { id: 'entertainment', name: '娛樂', type: 'expense' as const },
+            { id: 'shopping', name: '購物', type: 'expense' as const },
+            { id: 'work', name: '工作', type: 'income' as const },
+            { id: 'salary', name: '薪資', type: 'income' as const },
+          ]
+          const mockAccounts = [
             { id: 'cash', name: '現金', type: 'cash' },
             { id: 'bank', name: '銀行', type: 'bank' },
-          ])
+          ]
+          setCategories(mockCategories)
+          setAccounts(mockAccounts)
+          // Auto-select first account and category in demo mode
+          setAccountId('cash')
+          setCategoryId('food')
           return
         }
 
