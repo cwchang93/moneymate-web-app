@@ -1,9 +1,8 @@
 'use client'
 
 import { supabase } from '@/lib/supabase'
-import { Button } from '@/components/ui/button'
 
-interface Transaction {
+export interface Transaction {
   id: string
   description: string
   amount: number
@@ -14,95 +13,116 @@ interface Transaction {
 
 interface TransactionListProps {
   transactions: Transaction[]
-  onTransactionDeleted: () => void
+  onTransactionDeleted: (id: string) => void
+  compact?: boolean
 }
 
-export default function TransactionList({
-  transactions,
-  onTransactionDeleted,
-}: TransactionListProps) {
+const CATEGORY_COLORS: Record<string, string> = {
+  '工作': 'bg-blue-100 text-blue-700',
+  '薪資': 'bg-blue-100 text-blue-700',
+  '房屋': 'bg-purple-100 text-purple-700',
+  '餐飲': 'bg-orange-100 text-orange-700',
+  '食物': 'bg-orange-100 text-orange-700',
+  '日用品': 'bg-yellow-100 text-yellow-700',
+  '購物': 'bg-pink-100 text-pink-700',
+  '公用事業': 'bg-slate-100 text-slate-700',
+  '交通': 'bg-cyan-100 text-cyan-700',
+  '娛樂': 'bg-violet-100 text-violet-700',
+}
+
+function getCategoryStyle(category: string) {
+  return CATEGORY_COLORS[category] ?? 'bg-secondary text-muted-foreground'
+}
+
+export default function TransactionList({ transactions, onTransactionDeleted, compact = false }: TransactionListProps) {
   const handleDelete = async (id: string) => {
-    if (confirm('確定要刪除這筆交易嗎？')) {
-      try {
-        const { error } = await supabase.from('transactions').delete().eq('id', id)
-        if (error) throw error
-        onTransactionDeleted()
-      } catch (error) {
-        console.error('Error deleting transaction:', error)
-      }
+    if (!confirm('確定要刪除這筆交易嗎？')) return
+    try {
+      const { error } = await supabase.from('transactions').delete().eq('id', id)
+      if (error) throw error
+      onTransactionDeleted(id)
+    } catch (error) {
+      console.error('Error deleting transaction:', error)
     }
   }
 
   if (transactions.length === 0) {
     return (
-      <div className="p-8 text-center">
-        <p className="text-slate-600">還沒有交易記錄。開始添加您的第一筆交易吧！</p>
+      <div className="px-6 py-12 text-center">
+        <p className="text-sm text-muted-foreground">還沒有交易記錄。</p>
       </div>
     )
   }
 
   return (
-    <div className="overflow-x-auto">
-      <table className="w-full">
-        <thead className="bg-slate-100 border-b border-slate-200">
-          <tr>
-            <th className="px-6 py-3 text-left text-sm font-semibold text-slate-900">
-              日期
-            </th>
-            <th className="px-6 py-3 text-left text-sm font-semibold text-slate-900">
-              說明
-            </th>
-            <th className="px-6 py-3 text-left text-sm font-semibold text-slate-900">
-              分類
-            </th>
-            <th className="px-6 py-3 text-right text-sm font-semibold text-slate-900">
-              金額
-            </th>
-            <th className="px-6 py-3 text-center text-sm font-semibold text-slate-900">
-              操作
-            </th>
-          </tr>
-        </thead>
-        <tbody>
-          {transactions.map((transaction) => (
-            <tr
-              key={transaction.id}
-              className="border-b border-slate-200 hover:bg-slate-50 transition"
-            >
-              <td className="px-6 py-4 text-sm text-slate-600">
-                {new Date(transaction.date).toLocaleDateString('zh-TW')}
-              </td>
-              <td className="px-6 py-4 text-sm text-slate-900">
-                {transaction.description}
-              </td>
-              <td className="px-6 py-4 text-sm">
-                <span className="px-3 py-1 bg-slate-100 text-slate-700 rounded-full text-xs font-medium">
-                  {transaction.category}
+    <div className="divide-y divide-border">
+      {transactions.map((t) => (
+        <div
+          key={t.id}
+          className="flex items-center gap-4 px-6 py-3.5 hover:bg-secondary/40 transition group"
+        >
+          {/* Type indicator */}
+          <div
+            className={`w-8 h-8 rounded-full flex items-center justify-center shrink-0 ${
+              t.type === 'income'
+                ? 'bg-[color:var(--income-bg)] text-[color:var(--income)]'
+                : 'bg-[color:var(--expense-bg)] text-[color:var(--expense)]'
+            }`}
+          >
+            {t.type === 'income' ? (
+              <svg width="14" height="14" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+                <path d="M12 19V5M5 12l7-7 7 7" strokeLinecap="round" strokeLinejoin="round" />
+              </svg>
+            ) : (
+              <svg width="14" height="14" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+                <path d="M12 5v14M19 12l-7 7-7-7" strokeLinecap="round" strokeLinejoin="round" />
+              </svg>
+            )}
+          </div>
+
+          {/* Description + category */}
+          <div className="flex-1 min-w-0">
+            <p className="text-sm font-medium text-foreground truncate">{t.description}</p>
+            {!compact && (
+              <div className="flex items-center gap-2 mt-0.5">
+                <span className={`text-[10px] font-medium px-1.5 py-0.5 rounded-full ${getCategoryStyle(t.category)}`}>
+                  {t.category}
                 </span>
-              </td>
-              <td
-                className={`px-6 py-4 text-sm font-semibold text-right ${
-                  transaction.type === 'income'
-                    ? 'text-green-600'
-                    : 'text-red-600'
-                }`}
-              >
-                {transaction.type === 'income' ? '+' : '-'}${transaction.amount.toFixed(
-                  2
-                )}
-              </td>
-              <td className="px-6 py-4 text-center">
-                <Button
-                  onClick={() => handleDelete(transaction.id)}
-                  className="bg-red-500 hover:bg-red-600 text-white text-xs px-3 py-1"
-                >
-                  刪除
-                </Button>
-              </td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
+                <span className="text-[11px] text-muted-foreground">
+                  {new Date(t.date).toLocaleDateString('zh-TW', { month: 'short', day: 'numeric' })}
+                </span>
+              </div>
+            )}
+          </div>
+
+          {/* Date (compact only) */}
+          {compact && (
+            <span className="text-[11px] text-muted-foreground shrink-0">
+              {new Date(t.date).toLocaleDateString('zh-TW', { month: 'short', day: 'numeric' })}
+            </span>
+          )}
+
+          {/* Amount */}
+          <p className={`text-sm font-semibold shrink-0 ${
+            t.type === 'income' ? 'text-[color:var(--income)]' : 'text-[color:var(--expense)]'
+          }`}>
+            {t.type === 'income' ? '+' : '-'}NT${t.amount.toLocaleString('zh-TW')}
+          </p>
+
+          {/* Delete button — only visible on hover, hidden in compact */}
+          {!compact && (
+            <button
+              onClick={() => handleDelete(t.id)}
+              className="opacity-0 group-hover:opacity-100 transition ml-1 p-1 rounded text-muted-foreground hover:text-[color:var(--expense)] hover:bg-[color:var(--expense-bg)]"
+              aria-label="刪除"
+            >
+              <svg width="14" height="14" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+                <path d="M3 6h18M8 6V4h8v2M19 6l-1 14a2 2 0 01-2 2H8a2 2 0 01-2-2L5 6" strokeLinecap="round" strokeLinejoin="round" />
+              </svg>
+            </button>
+          )}
+        </div>
+      ))}
     </div>
   )
 }

@@ -2,22 +2,15 @@
 
 import { useState } from 'react'
 import { supabase } from '@/lib/supabase'
-import { Button } from '@/components/ui/button'
 
-const CATEGORIES = [
-  '食物',
-  '交通',
-  '娛樂',
-  '購物',
-  '工作',
-  '其他',
-  '薪資',
-  '獎金',
-]
+const CATEGORIES = ['食物', '交通', '娛樂', '購物', '工作', '薪資', '房屋', '公用事業', '其他']
 
 interface TransactionFormProps {
   onSuccess: () => void
 }
+
+const inputClass =
+  'w-full px-3 py-2 text-sm rounded-lg border border-border bg-background text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring transition'
 
 export default function TransactionForm({ onSuccess }: TransactionFormProps) {
   const [description, setDescription] = useState('')
@@ -34,12 +27,12 @@ export default function TransactionForm({ onSuccess }: TransactionFormProps) {
     setError('')
 
     try {
-      const { data: session } = await supabase.auth.getSession()
-      if (!session?.user) throw new Error('未登入')
+      const { data: sessionData } = await supabase.auth.getSession()
+      if (!sessionData?.session?.user) throw new Error('未登入，無法儲存至資料庫')
 
-      const { error } = await supabase.from('transactions').insert([
+      const { error: insertError } = await supabase.from('transactions').insert([
         {
-          user_id: session.user.id,
+          user_id: sessionData.session.user.id,
           description,
           amount: parseFloat(amount),
           category,
@@ -48,15 +41,13 @@ export default function TransactionForm({ onSuccess }: TransactionFormProps) {
         },
       ])
 
-      if (error) throw error
+      if (insertError) throw insertError
 
-      // 重置表單
       setDescription('')
       setAmount('')
       setCategory('食物')
       setType('expense')
       setDate(new Date().toISOString().split('T')[0])
-
       onSuccess()
     } catch (err: any) {
       setError(err.message || '發生錯誤')
@@ -66,116 +57,102 @@ export default function TransactionForm({ onSuccess }: TransactionFormProps) {
   }
 
   return (
-    <form onSubmit={handleSubmit} className="space-y-4">
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        {/* Type Selection */}
-        <div>
-          <label className="block text-sm font-medium text-slate-700 mb-2">
-            類型
-          </label>
-          <div className="flex space-x-2">
-            <button
-              type="button"
-              onClick={() => setType('expense')}
-              className={`flex-1 py-2 rounded-lg font-medium transition ${
-                type === 'expense'
-                  ? 'bg-red-500 text-white'
-                  : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
-              }`}
-            >
-              支出
-            </button>
-            <button
-              type="button"
-              onClick={() => setType('income')}
-              className={`flex-1 py-2 rounded-lg font-medium transition ${
-                type === 'income'
-                  ? 'bg-green-500 text-white'
-                  : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
-              }`}
-            >
-              收入
-            </button>
-          </div>
+    <form onSubmit={handleSubmit} className="space-y-5">
+      {/* Type toggle */}
+      <div>
+        <label className="block text-xs font-medium text-muted-foreground mb-2">類型</label>
+        <div className="flex gap-2">
+          <button
+            type="button"
+            onClick={() => setType('expense')}
+            className={`flex-1 py-2 text-sm rounded-lg font-medium border transition ${
+              type === 'expense'
+                ? 'bg-[color:var(--expense-bg)] text-[color:var(--expense)] border-[color:var(--expense)]'
+                : 'bg-card text-muted-foreground border-border hover:bg-secondary'
+            }`}
+          >
+            支出
+          </button>
+          <button
+            type="button"
+            onClick={() => setType('income')}
+            className={`flex-1 py-2 text-sm rounded-lg font-medium border transition ${
+              type === 'income'
+                ? 'bg-[color:var(--income-bg)] text-[color:var(--income)] border-[color:var(--income)]'
+                : 'bg-card text-muted-foreground border-border hover:bg-secondary'
+            }`}
+          >
+            收入
+          </button>
         </div>
+      </div>
 
-        {/* Amount */}
+      {/* Grid fields */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
         <div>
-          <label className="block text-sm font-medium text-slate-700 mb-2">
-            金額
-          </label>
-          <input
-            type="number"
-            step="0.01"
-            value={amount}
-            onChange={(e) => setAmount(e.target.value)}
-            className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-slate-900 focus:border-transparent outline-none"
-            placeholder="0.00"
-            required
-          />
-        </div>
-
-        {/* Description */}
-        <div>
-          <label className="block text-sm font-medium text-slate-700 mb-2">
-            說明
-          </label>
+          <label className="block text-xs font-medium text-muted-foreground mb-1.5">說明</label>
           <input
             type="text"
             value={description}
             onChange={(e) => setDescription(e.target.value)}
-            className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-slate-900 focus:border-transparent outline-none"
+            className={inputClass}
             placeholder="例如：午餐"
             required
           />
         </div>
 
-        {/* Category */}
         <div>
-          <label className="block text-sm font-medium text-slate-700 mb-2">
-            分類
-          </label>
+          <label className="block text-xs font-medium text-muted-foreground mb-1.5">金額（NT$）</label>
+          <input
+            type="number"
+            step="1"
+            min="0"
+            value={amount}
+            onChange={(e) => setAmount(e.target.value)}
+            className={inputClass}
+            placeholder="0"
+            required
+          />
+        </div>
+
+        <div>
+          <label className="block text-xs font-medium text-muted-foreground mb-1.5">分類</label>
           <select
             value={category}
             onChange={(e) => setCategory(e.target.value)}
-            className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-slate-900 focus:border-transparent outline-none"
+            className={inputClass}
           >
             {CATEGORIES.map((cat) => (
-              <option key={cat} value={cat}>
-                {cat}
-              </option>
+              <option key={cat} value={cat}>{cat}</option>
             ))}
           </select>
         </div>
 
-        {/* Date */}
-        <div className="md:col-span-2">
-          <label className="block text-sm font-medium text-slate-700 mb-2">
-            日期
-          </label>
+        <div>
+          <label className="block text-xs font-medium text-muted-foreground mb-1.5">日期</label>
           <input
             type="date"
             value={date}
             onChange={(e) => setDate(e.target.value)}
-            className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-slate-900 focus:border-transparent outline-none"
+            className={inputClass}
             required
           />
         </div>
       </div>
 
       {error && (
-        <div className="p-3 bg-red-50 border border-red-200 text-red-700 rounded-lg text-sm">
+        <p className="text-xs text-[color:var(--expense)] bg-[color:var(--expense-bg)] px-3 py-2 rounded-lg">
           {error}
-        </div>
+        </p>
       )}
 
-      <Button
+      <button
         type="submit"
         disabled={loading}
-        className="w-full bg-slate-900 hover:bg-slate-800 text-white font-medium py-2 rounded-lg transition"
+        className="w-full py-2.5 text-sm font-semibold rounded-lg bg-foreground text-background hover:opacity-90 disabled:opacity-50 transition"
       >
-        {loading ? '保存中...' : '保存交易'}
-      </Button>
+        {loading ? '儲存中...' : '儲存交易'}
+      </button>
     </form>
   )
 }

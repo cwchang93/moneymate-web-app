@@ -2,8 +2,9 @@
 
 import { useState, useEffect } from 'react'
 import { supabase } from '@/lib/supabase'
-import { Button } from '@/components/ui/button'
-import Link from 'next/link'
+
+const inputClass =
+  'w-full px-3 py-2.5 text-sm rounded-lg border border-border bg-background text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring transition'
 
 export default function AuthPage() {
   const [email, setEmail] = useState('')
@@ -15,16 +16,15 @@ export default function AuthPage() {
   const [isSupabaseAvailable, setIsSupabaseAvailable] = useState(true)
 
   useEffect(() => {
-    // 檢查 Supabase 是否可用
-    const checkSupabase = async () => {
+    const check = async () => {
       try {
-        const { data } = await supabase.auth.getSession()
+        await supabase.auth.getSession()
         setIsSupabaseAvailable(true)
-      } catch (err) {
+      } catch {
         setIsSupabaseAvailable(false)
       }
     }
-    checkSupabase()
+    check()
   }, [])
 
   const handleAuth = async (e: React.FormEvent) => {
@@ -35,125 +35,154 @@ export default function AuthPage() {
 
     try {
       if (!isSupabaseAvailable) {
-        // 演示模式：存儲到本地並重定向
-        localStorage.setItem('demoUser', JSON.stringify({ email, isSignUp }))
-        setSuccess('演示模式已啟用。正在進入儀表板...')
-        setTimeout(() => {
-          window.location.href = '/dashboard'
-        }, 1000)
+        localStorage.setItem('demoUser', JSON.stringify({ email }))
+        setSuccess('演示模式已啟用，正在進入儀表板...')
+        setTimeout(() => { window.location.href = '/dashboard' }, 800)
         return
       }
 
       if (isSignUp) {
         const { error } = await supabase.auth.signUp({ email, password })
         if (error) throw error
-        setSuccess('註冊成功！請檢查您的電子郵件進行驗證。')
+        setSuccess('註冊成功！請前往信箱確認驗證信。')
       } else {
         const { error } = await supabase.auth.signInWithPassword({ email, password })
         if (error) throw error
-        setSuccess('登入成功！')
-        // 重定向到儀表板
         window.location.href = '/dashboard'
       }
     } catch (err: any) {
-      setError(err.message || '發生錯誤')
+      setError(err.message || '發生錯誤，請再試一次')
     } finally {
       setLoading(false)
     }
   }
 
   const handleDemoMode = () => {
-    localStorage.setItem('demoUser', JSON.stringify({ email: 'demo@example.com', isSignUp: false }))
+    localStorage.setItem('demoUser', JSON.stringify({ email: 'demo@example.com' }))
     window.location.href = '/dashboard'
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-900 to-slate-800 flex items-center justify-center p-4">
-      <div className="w-full max-w-md">
-        <div className="bg-white rounded-lg shadow-xl p-8">
-          <h1 className="text-3xl font-bold text-center text-slate-900 mb-2">
-            Money Mate
+    <div className="min-h-screen bg-sidebar flex">
+      {/* Left panel — branding */}
+      <div className="hidden lg:flex lg:w-1/2 flex-col justify-between p-12">
+        <div className="flex items-center gap-2.5">
+          <div className="w-8 h-8 rounded-lg bg-sidebar-primary flex items-center justify-center">
+            <svg width="16" height="16" fill="none" stroke="var(--sidebar)" strokeWidth="2" viewBox="0 0 24 24">
+              <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2z" />
+              <path d="M12 6v6l4 2" strokeLinecap="round" />
+            </svg>
+          </div>
+          <span className="text-base font-semibold text-sidebar-primary">Money Mate</span>
+        </div>
+
+        <div>
+          <h1 className="text-4xl font-bold text-sidebar-primary leading-tight text-balance mb-4">
+            掌握您的每一分財務
           </h1>
-          <p className="text-center text-slate-600 mb-8">
-            {isSignUp ? '建立新帳戶' : '登入您的帳戶'}
+          <p className="text-sidebar-foreground/60 text-base leading-relaxed">
+            輕鬆記錄收入與支出，清楚掌握資金流向，讓理財更有計畫。
+          </p>
+        </div>
+
+        <p className="text-xs text-sidebar-foreground/30">
+          &copy; {new Date().getFullYear()} Money Mate
+        </p>
+      </div>
+
+      {/* Right panel — form */}
+      <div className="flex-1 flex items-center justify-center p-6 bg-background">
+        <div className="w-full max-w-sm">
+          {/* Mobile brand */}
+          <div className="flex items-center gap-2 mb-8 lg:hidden">
+            <div className="w-7 h-7 rounded-lg bg-foreground flex items-center justify-center">
+              <svg width="13" height="13" fill="none" stroke="var(--background)" strokeWidth="2" viewBox="0 0 24 24">
+                <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2z" />
+                <path d="M12 6v6l4 2" strokeLinecap="round" />
+              </svg>
+            </div>
+            <span className="text-base font-semibold text-foreground">Money Mate</span>
+          </div>
+
+          <h2 className="text-2xl font-bold text-foreground mb-1">
+            {isSignUp ? '建立新帳戶' : '歡迎回來'}
+          </h2>
+          <p className="text-sm text-muted-foreground mb-7">
+            {isSignUp ? '填寫以下資料開始使用' : '輸入帳號密碼繼續'}
           </p>
 
           <form onSubmit={handleAuth} className="space-y-4">
             <div>
-              <label className="block text-sm font-medium text-slate-700 mb-1">
+              <label className="block text-xs font-medium text-muted-foreground mb-1.5">
                 電子郵件
               </label>
               <input
                 type="email"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
-                className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-slate-900 focus:border-transparent outline-none"
+                className={inputClass}
                 placeholder="your@email.com"
                 required
               />
             </div>
 
             <div>
-              <label className="block text-sm font-medium text-slate-700 mb-1">
+              <label className="block text-xs font-medium text-muted-foreground mb-1.5">
                 密碼
               </label>
               <input
                 type="password"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
-                className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-slate-900 focus:border-transparent outline-none"
+                className={inputClass}
                 placeholder="••••••••"
                 required
               />
             </div>
 
             {error && (
-              <div className="p-3 bg-red-50 border border-red-200 text-red-700 rounded-lg text-sm">
+              <p className="text-xs text-[color:var(--expense)] bg-[color:var(--expense-bg)] px-3 py-2 rounded-lg">
                 {error}
-              </div>
+              </p>
             )}
-
             {success && (
-              <div className="p-3 bg-green-50 border border-green-200 text-green-700 rounded-lg text-sm">
+              <p className="text-xs text-[color:var(--income)] bg-[color:var(--income-bg)] px-3 py-2 rounded-lg">
                 {success}
-              </div>
+              </p>
             )}
 
-            <Button
+            <button
               type="submit"
               disabled={loading}
-              className="w-full bg-slate-900 hover:bg-slate-800 text-white font-medium py-2 rounded-lg transition"
+              className="w-full py-2.5 text-sm font-semibold rounded-lg bg-foreground text-background hover:opacity-90 disabled:opacity-50 transition"
             >
-              {loading ? '處理中...' : isSignUp ? '註冊' : '登入'}
-            </Button>
+              {loading ? '處理中...' : isSignUp ? '建立帳戶' : '登入'}
+            </button>
           </form>
 
-          <div className="mt-6 flex items-center justify-center space-x-2">
-            <button
-              onClick={() => {
-                setIsSignUp(!isSignUp)
-                setError('')
-                setSuccess('')
-              }}
-              className="text-slate-600 hover:text-slate-900 text-sm"
-            >
-              {isSignUp ? '已有帳戶？登入' : '沒有帳戶？註冊'}
-            </button>
+          <div className="mt-5 flex items-center gap-3">
+            <div className="flex-1 h-px bg-border" />
+            <span className="text-xs text-muted-foreground">或</span>
+            <div className="flex-1 h-px bg-border" />
           </div>
 
-          {!isSupabaseAvailable && (
-            <div className="mt-6 border-t pt-6">
-              <p className="text-center text-slate-600 text-sm mb-4">
-                Supabase 未連接。使用演示模式探索應用。
-              </p>
-              <button
-                onClick={handleDemoMode}
-                className="w-full bg-blue-600 hover:bg-blue-700 text-white font-medium py-2 rounded-lg transition"
-              >
-                進入演示模式
-              </button>
-            </div>
-          )}
+          <button
+            onClick={handleDemoMode}
+            className="mt-4 w-full py-2.5 text-sm font-medium rounded-lg border border-border text-muted-foreground hover:text-foreground hover:border-foreground/30 hover:bg-secondary transition"
+          >
+            使用演示模式
+          </button>
+
+          <p className="mt-6 text-center text-xs text-muted-foreground">
+            {isSignUp ? '已有帳戶？' : '還沒有帳戶？'}
+            {' '}
+            <button
+              onClick={() => { setIsSignUp(!isSignUp); setError(''); setSuccess('') }}
+              className="font-medium text-foreground hover:underline"
+            >
+              {isSignUp ? '登入' : '立即註冊'}
+            </button>
+          </p>
         </div>
       </div>
     </div>
