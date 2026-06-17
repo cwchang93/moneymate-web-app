@@ -39,6 +39,7 @@ export default function TransactionForm({ onSuccess }: TransactionFormProps) {
     const fetchData = async () => {
       try {
         const { data: sessionData } = await supabase.auth.getSession()
+        
         if (!sessionData?.session?.user) {
           // Demo mode - use hardcoded data
           const mockCategories = [
@@ -55,7 +56,6 @@ export default function TransactionForm({ onSuccess }: TransactionFormProps) {
           ]
           setCategories(mockCategories)
           setAccounts(mockAccounts)
-          // Auto-select first account and category in demo mode
           setAccountId('cash')
           setCategoryId('food')
           return
@@ -74,10 +74,38 @@ export default function TransactionForm({ onSuccess }: TransactionFormProps) {
         setAccounts(accountsRes.data || [])
 
         // Auto-select first of each
-        if (categoriesRes.data?.length) setCategoryId(categoriesRes.data[0].id)
-        if (accountsRes.data?.length) setAccountId(accountsRes.data[0].id)
+        if (accountsRes.data?.length) {
+          setAccountId(accountsRes.data[0].id)
+        } else {
+          // Fallback to mock if no accounts in DB
+          setAccounts([
+            { id: 'cash', name: '現金', type: 'cash' },
+            { id: 'bank', name: '銀行', type: 'bank' },
+          ])
+          setAccountId('cash')
+        }
+        
+        if (categoriesRes.data?.length) {
+          setCategoryId(categoriesRes.data[0].id)
+        }
       } catch (err) {
-        console.error('Error fetching form data:', err)
+        // Fallback to mock data if any error occurs
+        const mockCategories = [
+          { id: 'food', name: '食物', type: 'expense' as const },
+          { id: 'transport', name: '交通', type: 'expense' as const },
+          { id: 'entertainment', name: '娛樂', type: 'expense' as const },
+          { id: 'shopping', name: '購物', type: 'expense' as const },
+          { id: 'work', name: '工作', type: 'income' as const },
+          { id: 'salary', name: '薪資', type: 'income' as const },
+        ]
+        const mockAccounts = [
+          { id: 'cash', name: '現金', type: 'cash' },
+          { id: 'bank', name: '銀行', type: 'bank' },
+        ]
+        setCategories(mockCategories)
+        setAccounts(mockAccounts)
+        setAccountId('cash')
+        setCategoryId('food')
       }
     }
 
