@@ -2,7 +2,6 @@
   "buildCommand": "next build",
   "devCommand": "next dev",
   "outputDirectory": ".next",
-  "rootDirectory": ".",
   "framework": "nextjs",
   "nodeVersion": "20.x"
 }
