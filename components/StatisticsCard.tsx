@@ -8,34 +8,22 @@ interface StatisticsCardProps {
 
 const VARIANT_CONFIG = {
   income: {
-    icon: (
-      <svg width="18" height="18" fill="none" stroke="currentColor" strokeWidth="1.75" viewBox="0 0 24 24">
-        <path d="M12 19V5M5 12l7-7 7 7" strokeLinecap="round" strokeLinejoin="round" />
-      </svg>
-    ),
-    colorClass: 'text-[color:var(--income)]',
-    bgClass: 'bg-[color:var(--income-bg)]',
-    label: '收入',
+    iconFile: '/figma/container-2.svg',
+    iconBg: 'rgba(116, 197, 112, 0.20)',
+    amountColor: '#1b6d24',
+    borderColor: '#d0c5af',
   },
   expense: {
-    icon: (
-      <svg width="18" height="18" fill="none" stroke="currentColor" strokeWidth="1.75" viewBox="0 0 24 24">
-        <path d="M12 5v14M19 12l-7 7-7-7" strokeLinecap="round" strokeLinejoin="round" />
-      </svg>
-    ),
-    colorClass: 'text-[color:var(--expense)]',
-    bgClass: 'bg-[color:var(--expense-bg)]',
-    label: '支出',
+    iconFile: '/figma/container-3.svg',
+    iconBg: '#ffdad6',
+    amountColor: '#ba1a1a',
+    borderColor: '#d0c5af',
   },
   balance: {
-    icon: (
-      <svg width="18" height="18" fill="none" stroke="currentColor" strokeWidth="1.75" viewBox="0 0 24 24">
-        <path d="M3 6h18M3 12h18M3 18h18" strokeLinecap="round" />
-      </svg>
-    ),
-    colorClass: 'text-[color:var(--balance)]',
-    bgClass: 'bg-[color:var(--balance-bg)]',
-    label: '結餘',
+    iconFile: '/figma/container-4.svg',
+    iconBg: '#d4af37',
+    amountColor: '#735c00',
+    borderColor: 'rgba(115, 92, 0, 0.30)',
   },
 }
 
@@ -44,14 +32,34 @@ export default function StatisticsCard({ title, amount, variant }: StatisticsCar
   const isNegative = amount < 0
 
   return (
-    <div className="rounded-xl border border-border bg-card p-5">
-      <div className="flex items-start justify-between mb-4">
-        <p className="text-sm text-muted-foreground font-medium">{title}</p>
-        <span className={`w-8 h-8 rounded-lg ${config.bgClass} ${config.colorClass} flex items-center justify-center shrink-0`}>
-          {config.icon}
-        </span>
+    <div
+      className="rounded-lg bg-white p-6 flex flex-col justify-between"
+      style={{
+        border: `1px solid ${config.borderColor}`,
+        boxShadow: '0px 4px 20px rgba(115, 92, 0, 0.04)',
+        minHeight: 160,
+      }}
+    >
+      <div className="flex items-center justify-between">
+        <p className="text-base" style={{ color: '#5d5e61', fontFamily: 'var(--font-sans)' }}>
+          {title}
+        </p>
+        <div
+          className="w-8 h-8 rounded-xl flex items-center justify-center shrink-0"
+          style={{ backgroundColor: config.iconBg }}
+        >
+          <img src={config.iconFile} alt="" width={9} height={9} />
+        </div>
       </div>
-      <p className={`text-2xl font-bold tracking-tight ${isNegative ? 'text-[color:var(--expense)]' : config.colorClass}`}>
+      <p
+        className="text-4xl font-bold tracking-tight"
+        style={{
+          color: isNegative ? '#ba1a1a' : config.amountColor,
+          fontFamily: 'var(--font-heading)',
+          letterSpacing: '-0.01em',
+          lineHeight: '44px',
+        }}
+      >
         {isNegative ? '-' : ''}NT${Math.abs(amount).toLocaleString('zh-TW')}
       </p>
     </div>

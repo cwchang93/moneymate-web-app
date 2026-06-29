@@ -18,21 +18,9 @@ interface TransactionListProps {
   compact?: boolean
 }
 
-const CATEGORY_COLORS: Record<string, string> = {
-  '工作': 'bg-blue-100 text-blue-700',
-  '薪資': 'bg-blue-100 text-blue-700',
-  '房屋': 'bg-purple-100 text-purple-700',
-  '餐飲': 'bg-orange-100 text-orange-700',
-  '食物': 'bg-orange-100 text-orange-700',
-  '日用品': 'bg-yellow-100 text-yellow-700',
-  '購物': 'bg-pink-100 text-pink-700',
-  '公用事業': 'bg-slate-100 text-slate-700',
-  '交通': 'bg-cyan-100 text-cyan-700',
-  '娛樂': 'bg-violet-100 text-violet-700',
-}
-
-function getCategoryStyle(category?: string) {
-  return category && CATEGORY_COLORS[category] ? CATEGORY_COLORS[category] : 'bg-secondary text-muted-foreground'
+function formatDate(dateStr: string) {
+  const d = new Date(dateStr)
+  return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
 }
 
 export default function TransactionList({ transactions, onTransactionDeleted, compact = false }: TransactionListProps) {
@@ -50,82 +38,70 @@ export default function TransactionList({ transactions, onTransactionDeleted, co
   if (transactions.length === 0) {
     return (
       <div className="px-6 py-12 text-center">
-        <p className="text-sm text-muted-foreground">還沒有交易記錄。</p>
+        <p className="text-sm" style={{ color: '#5d5e61' }}>還沒有交易記錄。</p>
       </div>
     )
   }
 
   return (
-    <div className="divide-y divide-border">
-      {transactions.map((t) => (
-        <div
-          key={t.id}
-          className="flex items-center gap-4 px-6 py-3.5 hover:bg-secondary/40 transition group"
-        >
-          {/* Type indicator */}
+    <div>
+      {transactions.map((t, index) => {
+        const isIncome = t.type === 'income'
+        const barColor = isIncome ? '#1b6d24' : '#ba1a1a'
+        const amountColor = isIncome ? '#1b6d24' : '#191c1d'
+        const iconFile = isIncome ? '/figma/container-5.svg' : '/figma/container-6.svg'
+        const isLast = index === transactions.length - 1
+
+        return (
           <div
-            className={`w-8 h-8 rounded-full flex items-center justify-center shrink-0 ${
-              t.type === 'income'
-                ? 'bg-[color:var(--income-bg)] text-[color:var(--income)]'
-                : 'bg-[color:var(--expense-bg)] text-[color:var(--expense)]'
-            }`}
+            key={t.id}
+            className="relative flex items-center justify-between px-4 py-4 group hover:bg-[#f8f9fa] transition"
+            style={{
+              borderBottom: isLast ? 'none' : '1px solid #d0c5af',
+            }}
           >
-            {t.type === 'income' ? (
-              <svg width="14" height="14" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
-                <path d="M12 19V5M5 12l7-7 7 7" strokeLinecap="round" strokeLinejoin="round" />
-              </svg>
-            ) : (
-              <svg width="14" height="14" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
-                <path d="M12 5v14M19 12l-7 7-7-7" strokeLinecap="round" strokeLinejoin="round" />
-              </svg>
-            )}
-          </div>
+            {/* Left colored bar */}
+            <div
+              className="absolute left-0 top-0 bottom-0 w-1"
+              style={{ backgroundColor: barColor }}
+            />
 
-          {/* Note + category */}
-          <div className="flex-1 min-w-0">
-            <p className="text-sm font-medium text-foreground truncate">{t.note}</p>
-            {!compact && (
-              <div className="flex items-center gap-2 mt-0.5">
-                {t.category_name && (
-                  <span className={`text-[10px] font-medium px-1.5 py-0.5 rounded-full ${getCategoryStyle(t.category_name)}`}>
-                    {t.category_name}
-                  </span>
-                )}
-                <span className="text-[11px] text-muted-foreground">
-                  {new Date(t.date).toLocaleDateString('zh-TW', { month: 'short', day: 'numeric' })}
-                </span>
+            {/* Left side: icon + name */}
+            <div className="flex items-center gap-4 pl-2">
+              <img src={iconFile} alt={isIncome ? 'income' : 'expense'} width={12} height={12} />
+              <p className="text-base" style={{ color: '#191c1d' }}>{t.note}</p>
+            </div>
+
+            {/* Right side: amount + date + delete */}
+            <div className="flex items-center gap-3">
+              <div className="text-right">
+                <p
+                  className="text-base font-bold"
+                  style={{ color: amountColor, fontFamily: 'var(--font-sans)' }}
+                >
+                  {isIncome ? '+' : '-'}NT${t.amount.toLocaleString('zh-TW')}
+                </p>
+                <p className="text-sm" style={{ color: '#5d5e61' }}>
+                  {formatDate(t.date)}
+                </p>
               </div>
-            )}
+
+              {!compact && (
+                <button
+                  onClick={() => handleDelete(t.id)}
+                  className="opacity-0 group-hover:opacity-100 transition p-1 rounded"
+                  aria-label="刪除"
+                  style={{ color: '#ba1a1a' }}
+                >
+                  <svg width="14" height="14" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+                    <path d="M3 6h18M8 6V4h8v2M19 6l-1 14a2 2 0 01-2 2H8a2 2 0 01-2-2L5 6" strokeLinecap="round" strokeLinejoin="round" />
+                  </svg>
+                </button>
+              )}
+            </div>
           </div>
-
-          {/* Date (compact only) */}
-          {compact && (
-            <span className="text-[11px] text-muted-foreground shrink-0">
-              {new Date(t.date).toLocaleDateString('zh-TW', { month: 'short', day: 'numeric' })}
-            </span>
-          )}
-
-          {/* Amount */}
-          <p className={`text-sm font-semibold shrink-0 ${
-            t.type === 'income' ? 'text-[color:var(--income)]' : 'text-[color:var(--expense)]'
-          }`}>
-            {t.type === 'income' ? '+' : '-'}NT${t.amount.toLocaleString('zh-TW')}
-          </p>
-
-          {/* Delete button — only visible on hover, hidden in compact */}
-          {!compact && (
-            <button
-              onClick={() => handleDelete(t.id)}
-              className="opacity-0 group-hover:opacity-100 transition ml-1 p-1 rounded text-muted-foreground hover:text-[color:var(--expense)] hover:bg-[color:var(--expense-bg)]"
-              aria-label="刪除"
-            >
-              <svg width="14" height="14" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
-                <path d="M3 6h18M8 6V4h8v2M19 6l-1 14a2 2 0 01-2 2H8a2 2 0 01-2-2L5 6" strokeLinecap="round" strokeLinejoin="round" />
-              </svg>
-            </button>
-          )}
-        </div>
-      ))}
+        )
+      })}
     </div>
   )
 }

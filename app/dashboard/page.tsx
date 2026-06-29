@@ -224,7 +224,7 @@ export default function DashboardPage() {
     .sort((a, b) => a.date.localeCompare(b.date))
     .slice(-14)
     .reduce((acc, t) => {
-      const label = new Date(t.date).toLocaleDateString('zh-TW', { month: 'short', day: 'numeric' })
+      const label = new Date(t.date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
       const existing = acc.find(a => a.date === label)
       if (existing) {
         if (t.type === 'income') existing.income = (existing.income || 0) + t.amount
@@ -266,36 +266,63 @@ export default function DashboardPage() {
       {/* Main area */}
       <div className="flex-1 flex flex-col min-w-0">
         {/* Top bar */}
-        <header className="sticky top-0 z-10 flex items-center gap-4 border-b border-border bg-card px-6 py-4">
+        <header
+          className="sticky top-0 z-10 flex items-center justify-between px-8 py-0"
+          style={{ backgroundColor: '#f8f9fa', borderBottom: '1px solid #e1e3e4', height: 80 }}
+        >
+          {/* Mobile menu button */}
           <button
-            className="lg:hidden p-2 rounded-md text-muted-foreground hover:text-foreground hover:bg-secondary transition"
+            className="lg:hidden p-2 rounded-md mr-2"
             onClick={() => setSidebarOpen(true)}
-            aria-label="開啟選單"
+            aria-label="Open menu"
+            style={{ color: '#5d5e61' }}
           >
             <svg width="20" height="20" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
               <path d="M3 12h18M3 6h18M3 18h18" strokeLinecap="round" />
             </svg>
           </button>
+
+          {/* Title */}
           <div className="flex-1">
-            <h2 className="text-base font-semibold text-foreground">
-              {activeView === 'overview' && '總覽'}
-              {activeView === 'transactions' && '交易記錄'}
-              {activeView === 'add' && '新增交易'}
-              {activeView === 'test' && 'Supabase 連線測試'}
+            <h2
+              className="font-semibold"
+              style={{ fontFamily: 'var(--font-heading)', fontSize: 32, lineHeight: '40px', color: '#191c1d' }}
+            >
+              {activeView === 'overview' && 'Overview'}
+              {activeView === 'transactions' && 'History'}
+              {activeView === 'add' && 'New Activity'}
+              {activeView === 'test' && 'Status'}
             </h2>
-            <p className="text-xs text-muted-foreground">
-              {new Date().toLocaleDateString('zh-TW', { year: 'numeric', month: 'long', day: 'numeric' })}
+            <p className="text-sm" style={{ color: '#5d5e61', lineHeight: '20px' }}>
+              {new Date().toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })}
             </p>
           </div>
-          {isDemoMode && (
-            <span className="text-xs font-medium px-2 py-1 rounded-full bg-secondary text-muted-foreground border border-border">
-              演示模式
-            </span>
-          )}
+
+          {/* Right actions */}
+          <div className="flex items-center gap-2">
+            <button
+              className="w-[38px] h-[38px] rounded-xl flex items-center justify-center hover:bg-[#f3f4f5] transition"
+              aria-label="Notifications"
+            >
+              <img src="/figma/container.svg" alt="Notifications" width={15} height={19} />
+            </button>
+            <button
+              className="w-[38px] h-[38px] rounded-xl flex items-center justify-center hover:bg-[#f3f4f5] transition"
+              aria-label="Settings"
+            >
+              <img src="/figma/container-1.svg" alt="Settings" width={19} height={19} />
+            </button>
+            <button
+              className="h-[38px] px-4 rounded-xl text-sm font-medium transition hover:bg-[#f3f4f5]"
+              style={{ border: '1px solid #d0c5af', color: '#000000', fontFamily: 'var(--font-sans)' }}
+            >
+              Presentation Mode
+            </button>
+          </div>
         </header>
 
         {/* Page content */}
-        <main className="flex-1 p-6 space-y-6">
+        <main className="flex-1 p-8 space-y-6" style={{ backgroundColor: '#f8f9fa' }}>
 
           {/* Database Error Alert */}
           {dbError && (
@@ -317,41 +344,71 @@ export default function DashboardPage() {
           {activeView === 'overview' && (
             <>
               {/* Stats */}
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-                <StatisticsCard title="本月收入" amount={statistics.totalIncome} variant="income" />
-                <StatisticsCard title="本月支出" amount={statistics.totalExpense} variant="expense" />
-                <StatisticsCard title="目前結餘" amount={statistics.balance} variant="balance" />
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-6">
+                <StatisticsCard title="Monthly Income" amount={statistics.totalIncome} variant="income" />
+                <StatisticsCard title="Monthly Expense" amount={statistics.totalExpense} variant="expense" />
+                <StatisticsCard title="Current Balance" amount={statistics.balance} variant="balance" />
               </div>
 
               {/* Chart */}
               {chartData.length > 0 && (
-                <div className="rounded-xl border border-border bg-card p-6">
-                  <h3 className="text-sm font-semibold text-foreground mb-4">近期趨勢</h3>
-                  <ResponsiveContainer width="100%" height={220}>
-                    <LineChart data={chartData} margin={{ top: 4, right: 4, left: -20, bottom: 0 }}>
-                      <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" />
-                      <XAxis dataKey="date" tick={{ fontSize: 11, fill: 'var(--muted-foreground)' }} tickLine={false} axisLine={false} />
-                      <YAxis tick={{ fontSize: 11, fill: 'var(--muted-foreground)' }} tickLine={false} axisLine={false} />
-                      <Tooltip
-                        contentStyle={{ backgroundColor: 'var(--card)', border: '1px solid var(--border)', borderRadius: '8px', fontSize: 12 }}
-                        labelStyle={{ color: 'var(--foreground)', fontWeight: 600 }}
+                <div
+                  className="rounded-lg bg-white p-6"
+                  style={{ border: '1px solid #d0c5af', boxShadow: '0px 4px 20px rgba(115, 92, 0, 0.04)' }}
+                >
+                  <h3
+                    className="font-semibold mb-6"
+                    style={{ fontFamily: 'var(--font-heading)', fontSize: 20, lineHeight: '28px', color: '#191c1d' }}
+                  >
+                    Recent Trends
+                  </h3>
+                  <ResponsiveContainer width="100%" height={256}>
+                    <LineChart data={chartData} margin={{ top: 4, right: 8, left: 8, bottom: 0 }}>
+                      <CartesianGrid strokeDasharray="" stroke="rgba(208, 197, 175, 0.30)" vertical={false} />
+                      <XAxis
+                        dataKey="date"
+                        tick={{ fontSize: 12, fill: '#5d5e61', fontWeight: 500 }}
+                        tickLine={false}
+                        axisLine={false}
                       />
-                      <Line type="monotone" dataKey="income" stroke="var(--income)" strokeWidth={2} dot={false} name="收入" />
-                      <Line type="monotone" dataKey="expense" stroke="var(--expense)" strokeWidth={2} dot={false} name="支出" />
+                      <YAxis
+                        tick={{ fontSize: 12, fill: '#5d5e61', fontWeight: 500 }}
+                        tickLine={false}
+                        axisLine={false}
+                        tickFormatter={(v) => v.toLocaleString()}
+                      />
+                      <Tooltip
+                        contentStyle={{ backgroundColor: '#ffffff', border: '1px solid #d0c5af', borderRadius: '8px', fontSize: 12 }}
+                        labelStyle={{ color: '#191c1d', fontWeight: 600 }}
+                      />
+                      <Line type="monotone" dataKey="income" stroke="#1b6d24" strokeWidth={2} dot={false} name="Income" />
+                      <Line type="monotone" dataKey="expense" stroke="#ba1a1a" strokeWidth={2} dot={false} name="Expense" />
                     </LineChart>
                   </ResponsiveContainer>
                 </div>
               )}
 
               {/* Recent transactions preview */}
-              <div className="rounded-xl border border-border bg-card">
-                <div className="flex items-center justify-between px-6 py-4 border-b border-border">
-                  <h3 className="text-sm font-semibold text-foreground">最近交易</h3>
+              <div
+                className="rounded-lg bg-white"
+                style={{ border: '1px solid #d0c5af', boxShadow: '0px 4px 20px rgba(115, 92, 0, 0.04)' }}
+              >
+                <div
+                  className="flex items-center justify-between px-6 py-6"
+                  style={{ borderBottom: '1px solid #d0c5af' }}
+                >
+                  <h3
+                    className="font-semibold"
+                    style={{ fontFamily: 'var(--font-heading)', fontSize: 20, lineHeight: '28px', color: '#191c1d' }}
+                  >
+                    Recent Transactions
+                  </h3>
                   <button
                     onClick={() => setActiveView('transactions')}
-                    className="text-xs text-muted-foreground hover:text-foreground transition"
+                    className="text-xs font-medium tracking-wide transition hover:underline"
+                    style={{ color: '#5d5e61', letterSpacing: '0.06em' }}
                   >
-                    查看全部
+                    View All
                   </button>
                 </div>
                 <TransactionList
@@ -365,14 +422,26 @@ export default function DashboardPage() {
 
           {/* TRANSACTIONS */}
           {activeView === 'transactions' && (
-            <div className="rounded-xl border border-border bg-card">
-              <div className="flex items-center justify-between px-6 py-4 border-b border-border">
-                <h3 className="text-sm font-semibold text-foreground">所有交易</h3>
+            <div
+              className="rounded-lg bg-white"
+              style={{ border: '1px solid #d0c5af', boxShadow: '0px 4px 20px rgba(115, 92, 0, 0.04)' }}
+            >
+              <div
+                className="flex items-center justify-between px-6 py-6"
+                style={{ borderBottom: '1px solid #d0c5af' }}
+              >
+                <h3
+                  className="font-semibold"
+                  style={{ fontFamily: 'var(--font-heading)', fontSize: 20, lineHeight: '28px', color: '#191c1d' }}
+                >
+                  All Transactions
+                </h3>
                 <button
                   onClick={() => setActiveView('add')}
-                  className="text-xs font-medium px-3 py-1.5 bg-foreground text-background rounded-lg hover:opacity-90 transition"
+                  className="text-sm font-medium px-4 py-2 rounded-lg transition hover:opacity-90"
+                  style={{ backgroundColor: '#735c00', color: '#ffffff' }}
                 >
-                  + 新增
+                  + New
                 </button>
               </div>
               <TransactionList
@@ -385,8 +454,16 @@ export default function DashboardPage() {
           {/* ADD */}
           {activeView === 'add' && (
             <div className="max-w-xl">
-              <div className="rounded-xl border border-border bg-card p-6">
-                <h3 className="text-sm font-semibold text-foreground mb-6">新增交易</h3>
+              <div
+                className="rounded-lg bg-white p-6"
+                style={{ border: '1px solid #d0c5af', boxShadow: '0px 4px 20px rgba(115, 92, 0, 0.04)' }}
+              >
+                <h3
+                  className="font-semibold mb-6"
+                  style={{ fontFamily: 'var(--font-heading)', fontSize: 20, lineHeight: '28px', color: '#191c1d' }}
+                >
+                  New Activity
+                </h3>
                 <TransactionForm onSuccess={handleTransactionAdded} isDemoMode={isDemoMode} />
               </div>
             </div>
